@@ -116,6 +116,8 @@ export default class MainScene extends Phaser.Scene {
     this.toolbarInX       = 0;
     this.toolbarAnimating = false;
     this.tabBaseX         = { games: 0, feature: 0, info: 0 };
+    this.toolbarImg       = null;   // reference to gold bar image for tween
+    this.toolbarBaseX     = 0;      // starting X of gold bar (its origin is 0.5,0.5)
 
     // ── UI node refs ──
     this.lblPromo1    = null;
@@ -230,11 +232,12 @@ export default class MainScene extends Phaser.Scene {
     // We scale the bar wider to cover the full panel: target right edge ~500px.
     // Keep the same height and Y position. Scale X up proportionally.
     // New scaleX: to get right edge at 500px with center at 11.5 → half-width=488.5 → scaleX=488.5*2/2442=0.4
-    this.add.image(11.5, 670.5, 'lower_third')
+    this.toolbarImg = this.add.image(11.5, 670.5, 'lower_third')
       .setOrigin(0.5, 0.5)
       .setScale(0.4, 0.281)
       .setFlipY(true)
       .setDepth(2);
+    this.toolbarBaseX = 11.5;   // starting center X of the gold bar
 
     // ── Promo text labels ─────────────────────────────────────────────────
     // Godot: Label "!ANIMATE + your idea" margin_top=556, margin_bottom=613
@@ -314,32 +317,38 @@ export default class MainScene extends Phaser.Scene {
     this.playCounterLbl.setVisible(false);
 
     // ── Tab buttons ───────────────────────────────────────────────────────
-    // Canvas coords from scene (same ButtonHolder offset logic):
-    //   tab_games:   left=355, top=601, right=432, bottom=641  → 77×40
-    //   tab_feature: left=355, top=640, right=432, bottom=680  → 77×40
-    //   tab_info:    left=355, top=679, right=432, bottom=719  → 77×40
-    // Tab images are 280×144; scale to fit 77×40
-    const tabScaleX = 77 / 280;
-    const tabScaleY = 40 / 144;
+    // Godot: tab_games texture_normal = tab_games_ON (tabs are LIT by default).
+    // The _off texture is only used when another tab is active (disabled state).
+    // Tabs are right-aligned to the toolbar's visible right edge.
+    // Toolbar right edge = barCenterX + (2442 * barScaleX / 2)
+    //   = 11.5 + (2442 * 0.4 / 2) = 11.5 + 488.4 = ~500px
+    // Tab width = 77px → tab left = 500 - 77 = 423
+    const BAR_RIGHT_EDGE = Math.round(11.5 + (2442 * 0.4 / 2));  // ~500
+    const TAB_W = 77;
+    const TAB_H = 40;
+    const TAB_LEFT = BAR_RIGHT_EDGE - TAB_W;  // ~423
+    const tabScaleX = TAB_W / 280;
+    const tabScaleY = TAB_H / 144;
     const tabDefs = [
       { key: 'games',   top: 601 },
       { key: 'feature', top: 640 },
       { key: 'info',    top: 679 },
     ];
     tabDefs.forEach(({ key, top }) => {
-      const img = this.add.image(355, top, `tab_${key}_off`)
+      // Start with _on texture (lit/in-color) — Godot default
+      const img = this.add.image(TAB_LEFT, top, `tab_${key}_on`)
         .setOrigin(0, 0)
         .setScale(tabScaleX, tabScaleY)
         .setInteractive({ useHandCursor: true })
         .setDepth(6);
-      this.tabs[key]    = img;
-      this.tabBaseX[key] = 355;
+      this.tabs[key]     = img;
+      this.tabBaseX[key] = TAB_LEFT;
       img.on('pointerdown', () => this._toggleTab(key));
     });
 
-    // Toolbar tween reference point — tabs start at X=355, slide +240 to X=595
-    this.toolbarOutX = 355;
-    this.toolbarInX  = 355 + 240;
+    // Toolbar tween: tabs slide +240px right when active, gold bar slides with them
+    this.toolbarOutX = TAB_LEFT;
+    this.toolbarInX  = TAB_LEFT + 240;
   }
 
   // ── Helper: make a promo text label ──────────────────────────────────────
@@ -696,6 +705,7 @@ export default class MainScene extends Phaser.Scene {
     const newBtn  = this.tabs[newTab]  || null;
     if (prevBtn) this.tweens.killTweensOf(prevBtn);
     if (newBtn)  this.tweens.killTweensOf(newBtn);
+    if (this.toolbarImg) this.tweens.killTweensOf(this.toolbarImg);
 
     const delta = this.toolbarInX - this.toolbarOutX; // 240
 
@@ -718,6 +728,19 @@ export default class MainScene extends Phaser.Scene {
       tweenDefs.push({
         targets: prevBtn,
         x: this.tabBaseX[prevTab],
+        duration: 220,
+        ease: 'Quad.easeOut',
+      });
+    }
+
+    // Slide the gold bar: +240 when expanding, back to base when collapsing
+    if (this.toolbarImg) {
+      const barTargetX = expand
+        ? this.toolbarBaseX + delta
+        : this.toolbarBaseX;
+      tweenDefs.push({
+        targets: this.toolbarImg,
+        x: barTargetX,
         duration: 220,
         ease: 'Quad.easeOut',
       });
