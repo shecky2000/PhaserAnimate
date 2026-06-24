@@ -85,9 +85,9 @@ export default class MainScene extends Phaser.Scene {
     this.load.image('tab_info_on',     'assets/Graphics/Elements/tab_info_on.png');
     this.load.image('tab_info_off',    'assets/Graphics/Elements/tab_info_off.png');
     this.load.image('arrow_btn',       'assets/Graphics/Elements/arrow_button_off.png');
-    this.load.image('crown_btn',       'assets/Graphics/Elements/crown_button_off.png');
+    this.load.image('crown_btn',       'assets/Graphics/Elements/crown_button_on.png');
     this.load.image('anim_btn',        'assets/Graphics/Elements/btn_anim_4.png');
-    this.load.image('play_btn',        'assets/Graphics/Elements/btn_anim_5.png');
+    this.load.image('play_btn',        'assets/Graphics/Elements/play_on.png');
     this.load.image('lower_third',     'assets/Graphics/Elements/lower_third.png');
   }
 
@@ -102,6 +102,7 @@ export default class MainScene extends Phaser.Scene {
     this.myKey = getQueryParam('my_key') || 'S7V74GMC3Mwww';
     this.endpoints = buildEndpoints(this.myKey);
 
+    this._buildGoldBorders(W, H);
     this._buildBottomPanel(W, H);
     this._buildActivateBtn(W);
     this._bindGuideToggle();
@@ -116,19 +117,27 @@ export default class MainScene extends Phaser.Scene {
     this.time.addEvent({ delay: 5000, loop: true, callback: () => this._nextPromo() });
   }
 
+  // ── Thin gold border lines at top and bottom of canvas ────────────────
+  _buildGoldBorders(W, H) {
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0xc8860a, 1);
+    g.fillRect(0, 0, W, 6);       // top border
+    g.fillRect(0, H - 6, W, 6);   // bottom border
+  }
+
   // ── Bottom-left panel ───────────────────────────────────────────────────
   // Reference layout (1280×720):
-  //   Gold bar:   x=0, y≈630, w≈490, h≈90  (lower_third scaled)
-  //   Banner:     x≈5, y≈610, w≈390, h≈55  (dark blue rounded rect + text)
-  //   Icon row:   y≈660 (center), x starting at ~10, spacing ~80px
-  //   Tabs stack: x≈405, y≈610 stacked downward, each ~75×38
+  //   Gold bar:   x=0, y≈610, w≈500, h≈110  (lower_third scaled)
+  //   Banner:     x≈5, y≈590, w≈400, h≈62   (dark blue rounded rect + text)
+  //   Icon row:   y≈660 (center of bar), x starting at ~38, spacing ~84px
+  //   Tabs stack: x≈410, y≈590 stacked downward, each ~80×41
   _buildBottomPanel(W, H) {
     // ── Gold bar ──
-    // lower_third.png is 2442×488; scale to fit ~490px wide, ~90px tall
-    const barW = 490;
-    const barH = 90;
+    // lower_third.png is 2442×488; scale to ~500px wide, ~110px tall
+    const barW = 500;
+    const barH = 110;
     const barX = 0;
-    const barY = H - barH;   // 630
+    const barY = H - barH;   // 610
     const barScaleX = barW / 2442;
     const barScaleY = barH / 488;
     this.add.image(barX, barY, 'lower_third')
@@ -137,48 +146,47 @@ export default class MainScene extends Phaser.Scene {
       .setDepth(2);
 
     // ── Dark banner with promo text ──
-    // Sits above-left of the gold bar, overlapping slightly
     const bannerX = 5;
-    const bannerY = H - barH - 52;  // ~578
-    const bannerW = 390;
-    const bannerH = 58;
+    const bannerY = H - barH - 62;  // ~548
+    const bannerW = 400;
+    const bannerH = 66;
 
     const bannerG = this.add.graphics().setDepth(3);
     // Outer gold border
     bannerG.fillStyle(0xc8860a, 1);
-    bannerG.fillRoundedRect(bannerX - 3, bannerY - 3, bannerW + 6, bannerH + 6, 14);
+    bannerG.fillRoundedRect(bannerX - 3, bannerY - 3, bannerW + 6, bannerH + 6, 16);
     // Inner dark blue fill
     bannerG.fillStyle(0x1a1f6e, 1);
-    bannerG.fillRoundedRect(bannerX, bannerY, bannerW, bannerH, 12);
+    bannerG.fillRoundedRect(bannerX, bannerY, bannerW, bannerH, 14);
 
     // Promo text — two lines
-    this.lblPromo1 = this.add.text(bannerX + bannerW / 2, bannerY + 14, '!ANIMATE + your idea', {
-      fontFamily: 'Arial Black, Arial', fontSize: '17px', color: '#ffffff',
+    this.lblPromo1 = this.add.text(bannerX + bannerW / 2, bannerY + 10, '!ANIMATE + your idea', {
+      fontFamily: 'Arial Black, Arial', fontSize: '19px', color: '#ffffff',
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setDepth(4);
 
-    this.lblPromo2 = this.add.text(bannerX + bannerW / 2, bannerY + 34, 'TO CREATE ANIMATION', {
-      fontFamily: 'Arial Black, Arial', fontSize: '15px', color: '#ffe066',
+    this.lblPromo2 = this.add.text(bannerX + bannerW / 2, bannerY + 36, 'TO CREATE ANIMATION', {
+      fontFamily: 'Arial Black, Arial', fontSize: '17px', color: '#ffe066',
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setDepth(4);
 
     // ── Icon buttons on the gold bar ──
-    // Arrow, Crown, ANIM, PLAY — centered vertically on bar, evenly spaced
-    // Each scaled to ~70px display size
-    const iconSize = 70;
-    const iconY = H - barH / 2;  // vertical center of bar ≈ 675
-    const iconStartX = 38;
-    const iconSpacing = 82;
+    // Arrow (319px), Crown (319px), ANIM (245px), PLAY (884px)
+    // Display each at ~78px tall, centered vertically on bar
+    const iconY = H - barH / 2;  // ≈ 665
+    const iconStartX = 40;
+    const iconSpacing = 86;
 
     const iconConfigs = [
-      { key: 'arrow_btn',  srcW: 319 },
-      { key: 'crown_btn',  srcW: 319 },
-      { key: 'anim_btn',   srcW: 245 },
-      { key: 'play_btn',   srcW: 232 },
+      { key: 'arrow_btn', srcH: 313 },
+      { key: 'crown_btn', srcH: 313 },
+      { key: 'anim_btn',  srcH: 236 },
+      { key: 'play_btn',  srcH: 744 },
     ];
+    const iconDisplayH = 78;
 
     iconConfigs.forEach((cfg, i) => {
-      const scale = iconSize / cfg.srcW;
+      const scale = iconDisplayH / cfg.srcH;
       this.add.image(iconStartX + i * iconSpacing, iconY, cfg.key)
         .setOrigin(0.5, 0.5)
         .setScale(scale)
@@ -187,16 +195,15 @@ export default class MainScene extends Phaser.Scene {
     });
 
     // ── Tab buttons (GAMES / FEATURES / INFO) ──
-    // Stacked vertically to the right of the banner
-    // Tab images are 280×144; scale down to ~75×38 (scale ≈ 0.268)
-    const tabScale = 0.268;
-    const tabDisplayH = 144 * tabScale;  // ≈ 38.6
-    const tabX = bannerX + bannerW + 10; // ≈ 405
+    // Tab images are 280×144; scale to ~80×41 (scale ≈ 0.285)
+    const tabScale = 0.285;
+    const tabDisplayH = 144 * tabScale;  // ≈ 41
+    const tabX = bannerX + bannerW + 8;  // ≈ 413
     const tabStartY = bannerY;           // align top with banner
 
     const tabKeys = ['games', 'feature', 'info'];
     tabKeys.forEach((key, i) => {
-      const ty = tabStartY + i * (tabDisplayH + 2);
+      const ty = tabStartY + i * (tabDisplayH + 3);
       const img = this.add.image(tabX, ty, this.tabTextures[key].off)
         .setOrigin(0, 0)
         .setScale(tabScale)
