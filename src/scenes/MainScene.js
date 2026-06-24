@@ -133,11 +133,11 @@ export default class MainScene extends Phaser.Scene {
   //   Tabs stack: x≈410, y≈590 stacked downward, each ~80×41
   _buildBottomPanel(W, H) {
     // ── Gold bar ──
-    // lower_third.png is 2442×488; scale to ~500px wide, ~110px tall
-    const barW = 500;
-    const barH = 110;
+    // lower_third.png is 2442×488; scale to ~490px wide, ~115px tall
+    const barW = 490;
+    const barH = 115;
     const barX = 0;
-    const barY = H - barH;   // 610
+    const barY = H - barH;   // 615
     const barScaleX = barW / 2442;
     const barScaleY = barH / 488;
     this.add.image(barX, barY, 'lower_third')
@@ -146,10 +146,12 @@ export default class MainScene extends Phaser.Scene {
       .setDepth(2);
 
     // ── Dark banner with promo text ──
-    const bannerX = 5;
-    const bannerY = H - barH - 62;  // ~548
-    const bannerW = 400;
-    const bannerH = 66;
+    // In the reference the banner is ~395px wide, ~68px tall
+    // and sits with its bottom edge touching the top of the gold bar
+    const bannerX = 4;
+    const bannerW = 395;
+    const bannerH = 68;
+    const bannerY = barY - bannerH - 2;  // sits just above the gold bar
 
     const bannerG = this.add.graphics().setDepth(3);
     // Outer gold border
@@ -160,33 +162,33 @@ export default class MainScene extends Phaser.Scene {
     bannerG.fillRoundedRect(bannerX, bannerY, bannerW, bannerH, 14);
 
     // Promo text — two lines
-    this.lblPromo1 = this.add.text(bannerX + bannerW / 2, bannerY + 10, '!ANIMATE + your idea', {
-      fontFamily: 'Arial Black, Arial', fontSize: '19px', color: '#ffffff',
+    this.lblPromo1 = this.add.text(bannerX + bannerW / 2, bannerY + 9, '!ANIMATE + your idea', {
+      fontFamily: 'Arial Black, Arial', fontSize: '20px', color: '#ffffff',
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setDepth(4);
 
-    this.lblPromo2 = this.add.text(bannerX + bannerW / 2, bannerY + 36, 'TO CREATE ANIMATION', {
-      fontFamily: 'Arial Black, Arial', fontSize: '17px', color: '#ffe066',
+    this.lblPromo2 = this.add.text(bannerX + bannerW / 2, bannerY + 37, 'TO CREATE ANIMATION', {
+      fontFamily: 'Arial Black, Arial', fontSize: '18px', color: '#ffe066',
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setDepth(4);
 
     // ── Icon buttons on the gold bar ──
-    // Arrow (319px), Crown (319px), ANIM (245px), PLAY (884px)
-    // Display each at ~78px tall, centered vertically on bar
-    const iconY = H - barH / 2;  // ≈ 665
-    const iconStartX = 40;
-    const iconSpacing = 86;
+    // Arrow (319x313), Crown (319x313), ANIM (245x236), PLAY (884x744)
+    // Scale each to ~82px WIDE so they all appear the same visual size
+    const iconY = barY + barH / 2;  // vertical center of bar
+    const iconStartX = 42;
+    const iconSpacing = 84;
 
     const iconConfigs = [
-      { key: 'arrow_btn', srcH: 313 },
-      { key: 'crown_btn', srcH: 313 },
-      { key: 'anim_btn',  srcH: 236 },
-      { key: 'play_btn',  srcH: 744 },
+      { key: 'arrow_btn', srcW: 319 },
+      { key: 'crown_btn', srcW: 319 },
+      { key: 'anim_btn',  srcW: 245 },
+      { key: 'play_btn',  srcW: 884 },
     ];
-    const iconDisplayH = 78;
+    const iconDisplayW = 82;
 
     iconConfigs.forEach((cfg, i) => {
-      const scale = iconDisplayH / cfg.srcH;
+      const scale = iconDisplayW / cfg.srcW;
       this.add.image(iconStartX + i * iconSpacing, iconY, cfg.key)
         .setOrigin(0.5, 0.5)
         .setScale(scale)
@@ -195,11 +197,12 @@ export default class MainScene extends Phaser.Scene {
     });
 
     // ── Tab buttons (GAMES / FEATURES / INFO) ──
-    // Tab images are 280×144; scale to ~80×41 (scale ≈ 0.285)
-    const tabScale = 0.285;
-    const tabDisplayH = 144 * tabScale;  // ≈ 41
-    const tabX = bannerX + bannerW + 8;  // ≈ 413
-    const tabStartY = bannerY;           // align top with banner
+    // Tab images are 280×144; scale to ~90×46 (scale ≈ 0.32)
+    const tabScale = 0.32;
+    const tabDisplayH = 144 * tabScale;  // ≈ 46
+    const tabX = bannerX + bannerW + 6;  // ≈ 405
+    // Stack the 3 tabs starting from the banner top
+    const tabStartY = bannerY;
 
     const tabKeys = ['games', 'feature', 'info'];
     tabKeys.forEach((key, i) => {
