@@ -921,10 +921,11 @@ export default class MainScene extends Phaser.Scene {
       this.animationQueue.splice(this.animationOnDisplay, 1);
       if (this.animCounterLbl) this.animCounterLbl.setText(String(this.animationQueue.length));
 
-      // POST create_animation
+      // POST create_animation — always pass filetype=mp4 for Phaser (skips OGV conversion)
       const url = this.endpoints.create_animation
         + `&animation_prompt=${encodeURIComponent(submittedText)}`
-        + `&animation_queue_id=${encodeURIComponent(current.id ?? '')}`;
+        + `&animation_queue_id=${encodeURIComponent(current.id ?? '')}`
+        + `&filetype=mp4`;
       try {
         await safeRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         console.log('SUBMIT: animation submitted');
@@ -954,8 +955,8 @@ export default class MainScene extends Phaser.Scene {
     if (this.animCounterLbl) this.animCounterLbl.setText(String(this.animationQueue.length));
     if (this.promptDeleteBtn) this.promptDeleteBtn.setVisible(false);
 
-    // POST skip_animation
-    const url = this.endpoints.skip_animation + `&animation_queue_id=${animId}`;
+    // POST skip_animation — parameter is animation_id (not animation_queue_id)
+    const url = this.endpoints.skip_animation + `&animation_id=${animId}`;
     try {
       await safeRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     } catch (e) {
@@ -1003,26 +1004,106 @@ export default class MainScene extends Phaser.Scene {
     this._playNextAnimation();
   }
 
+  // ── DOWNLOAD (Blob pre-fetch, mirrors Godot download step) ─────────────────
+  async _downloadNextAnimation() {
+    // Only download one at a time; skip if already downloading or queue empty
+    if (this._isDownloading || this.animationReadyQueue.length === 0) return;
+    this._isDownloading = true;
+
+    const item = this.animationReadyQueue.shift();
+    const videoUrl = item.ogv_url; // ogv_url contains MP4 URL when filetype=mp4 was used
+    console.log('DOWNLOAD: fetching animation id=' + item.id + ' url=' + videoUrl);
+
+    try {
+      const resp = await fetch(videoUrl, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob    = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      this.downloadedAnimations.push({ ...item, blobUrl, serverUrl: videoUrl });
+      console.log('DOWNLOAD: ready id=' + item.id);
+      this._updatePlayAnimationButton();
+    } catch (e) {
+      console.error('DOWNLOAD: failed for id=' + item.id, e);
+      // Re-queue on failure so it can be retried next poll cycle
+      this.animationReadyQueue.unshift(item);
+    } finally {
+      this._isDownloading = false;
+      // Download next in queue if any
+      if (this.animationReadyQueue.length > 0) this._downloadNextAnimation();
+    }
+  }
+
   _playNextAnimation() {
     if (this.downloadedAnimations.length === 0) return false;
     const anim = this.downloadedAnimations.shift();
     this._playingAnimationId = anim.id;
+    this._currentBlobUrl     = anim.blobUrl;
 
     if (this.videoLblPrompt)  this.videoLblPrompt.setText(String(anim.animation_prompt ?? ''));
     if (this.videoAuthorName) this.videoAuthorName.setText(String(anim.local_screen_name ?? ''));
     this._loadVideoProfilePic(String(anim.profile_pic_url ?? ''));
 
-    console.log('ANIMATION: playing id=' + anim.id + ' (video stub — playback next sprint)');
-    // TODO: actual video playback next sprint
-    // On finish: this._onVidFinished()
+    this._startVideoPlayback(anim.blobUrl);
     return true;
+  }
+
+  _startVideoPlayback(blobUrl) {
+    // Remove any existing video element
+    this._removeVideoElement();
+
+    // Get the Phaser canvas position/size to overlay the video correctly
+    const canvas  = this.sys.game.canvas;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    const vid = document.createElement('video');
+    vid.id             = 'phaser-anim-video';
+    vid.src            = blobUrl;
+    vid.autoplay       = true;
+    vid.playsInline    = true;
+    vid.style.position = 'fixed';
+    vid.style.left     = canvasRect.left + 'px';
+    vid.style.top      = canvasRect.top  + 'px';
+    vid.style.width    = canvasRect.width  + 'px';
+    vid.style.height   = canvasRect.height + 'px';
+    vid.style.zIndex   = '100';
+    vid.style.objectFit = 'contain';
+    vid.style.background = 'transparent';
+    vid.addEventListener('ended', () => this._onVidFinished());
+    vid.addEventListener('error', (e) => {
+      console.error('ANIMATION: video error', e);
+      this._onVidFinished();
+    });
+    document.body.appendChild(vid);
+    this._videoEl = vid;
+    console.log('ANIMATION: playing id=' + this._playingAnimationId);
+  }
+
+  _removeVideoElement() {
+    if (this._videoEl) {
+      this._videoEl.pause();
+      this._videoEl.src = '';
+      if (this._videoEl.parentNode) this._videoEl.parentNode.removeChild(this._videoEl);
+      this._videoEl = null;
+    }
   }
 
   _onVidFinished() {
     console.log('ANIMATION: playback finished, marking as played, id=' + this._playingAnimationId);
+
+    // Remove the video element
+    this._removeVideoElement();
+
+    // Revoke the Blob URL to free memory
+    if (this._currentBlobUrl) {
+      URL.revokeObjectURL(this._currentBlobUrl);
+      // Keep reference for replay — don't null it yet until exit
+    }
+
+    // Mark as played on server
     const url = this.endpoints.mark_animation_played + `&animation_id=${this._playingAnimationId}`;
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store' })
       .catch(e => console.error('mark_animation_played failed', e));
+
     if (this.videoBtnExit)   this.videoBtnExit.setVisible(false);
     if (this.videoBtnReplay) this.videoBtnReplay.setVisible(true);
     this._updatePlayAnimationButton();
@@ -1032,7 +1113,18 @@ export default class MainScene extends Phaser.Scene {
   _onBtnReplay() {
     if (this.videoBtnReplay) this.videoBtnReplay.setVisible(false);
     if (this.videoBtnExit)   this.videoBtnExit.setVisible(false);
-    // TODO: replay video
+    // Replay: re-fetch from server URL (blob was revoked after first play)
+    if (this._currentServerUrl) {
+      console.log('ANIMATION: replay — re-fetching from server');
+      fetch(this._currentServerUrl, { cache: 'no-store' })
+        .then(r => r.blob())
+        .then(blob => {
+          const blobUrl = URL.createObjectURL(blob);
+          this._currentBlobUrl = blobUrl;
+          this._startVideoPlayback(blobUrl);
+        })
+        .catch(e => console.error('REPLAY: re-fetch failed', e));
+    }
     if (this.globalExitBtn)  this.globalExitBtn.setVisible(true);
   }
 
@@ -1075,6 +1167,11 @@ export default class MainScene extends Phaser.Scene {
         onComplete: () => { if (this.rantViewerContainer) this.rantViewerContainer.setVisible(false); },
       });
     }
+
+    // Clean up any active video element
+    this._removeVideoElement();
+    if (this._currentBlobUrl) { URL.revokeObjectURL(this._currentBlobUrl); this._currentBlobUrl = null; }
+    this._currentServerUrl = null;
 
     // Hide global exit button
     if (this.globalExitBtn) this.globalExitBtn.setVisible(false);
@@ -1184,6 +1281,8 @@ export default class MainScene extends Phaser.Scene {
         const alreadyRq = this.animationReadyQueue.some(r => parseInt(r.id ?? -1) === itId);
         if (!alreadyDl && !alreadyRq) this.animationReadyQueue.push(item);
       }
+      // Trigger download for any newly queued ready items
+      this._downloadNextAnimation();
       this._updatePlayAnimationButton();
     }
 
