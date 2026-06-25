@@ -1091,9 +1091,15 @@ export default class MainScene extends Phaser.Scene {
   // ── HIDE FEATURE BUTTONS (Godot hide_feature_buttons) ────────────────────
   _hideFeatureButtons() {
     if (this.animBtn)  this.animBtn.setVisible(false);
+    if (this.animCounter)    this.animCounter.setVisible(false);
+    if (this.animCounterLbl) this.animCounterLbl.setVisible(false);
     if (this.playBtn)  this.playBtn.setVisible(false);
+    if (this.playCounter)    this.playCounter.setVisible(false);
+    if (this.playCounterLbl) this.playCounterLbl.setVisible(false);
     if (this.arrowBtn) this.arrowBtn.setVisible(false);
     if (this.crownBtn) this.crownBtn.setVisible(false);
+    if (this.crownCounter)    this.crownCounter.setVisible(false);
+    if (this.crownCounterLbl) this.crownCounterLbl.setVisible(false);
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1113,16 +1119,19 @@ export default class MainScene extends Phaser.Scene {
     // Arrow: visible only before activation
     if (this.arrowBtn) this.arrowBtn.setVisible(!this._activationDone);
 
-    // ANIM: always visible (host may self-submit)
+    // ANIM: always visible (host may self-submit); counter only when count > 0
     if (this.animBtn) this.animBtn.setVisible(true);
-    if (this.animCounterLbl) this.animCounterLbl.setText(String(this.animationQueue.length));
+    const animCount = this.animationQueue.length;
+    if (this.animCounter)    this.animCounter.setVisible(animCount > 0);
+    if (this.animCounterLbl) { this.animCounterLbl.setVisible(animCount > 0); this.animCounterLbl.setText(String(animCount)); }
 
-    // CROWN: visible only when num_rants > 0
-    if (this.crownBtn) this.crownBtn.setVisible(this.numRants > 0);
-    if (this.crownCounter)    this.crownCounter.setVisible(this.numRants > 0);
-    if (this.crownCounterLbl) { this.crownCounterLbl.setVisible(this.numRants > 0); this.crownCounterLbl.setText(String(this.numRants)); }
+    // CROWN: visible only when num_rants > 0; counter mirrors button
+    const crownVisible = this.numRants > 0;
+    if (this.crownBtn) this.crownBtn.setVisible(crownVisible);
+    if (this.crownCounter)    this.crownCounter.setVisible(crownVisible);
+    if (this.crownCounterLbl) { this.crownCounterLbl.setVisible(crownVisible); this.crownCounterLbl.setText(String(this.numRants)); }
 
-    // PLAY: visible only when downloaded_animations.length > 0
+    // PLAY: visible only when downloaded_animations.length > 0; counter mirrors button
     const hasDownloaded = this.downloadedAnimations.length > 0;
     if (this.playBtn) this.playBtn.setVisible(hasDownloaded);
     if (this.playCounter)    this.playCounter.setVisible(hasDownloaded);
@@ -1191,7 +1200,9 @@ export default class MainScene extends Phaser.Scene {
           console.log('POLL: New animation queued, id=', item.id);
         }
       }
-      if (this.animCounterLbl) this.animCounterLbl.setText(String(this.animationQueue.length));
+      const animCount = this.animationQueue.length;
+      if (this.animCounter)    this.animCounter.setVisible(animCount > 0 && this.animBtn && this.animBtn.visible);
+      if (this.animCounterLbl) { this.animCounterLbl.setVisible(animCount > 0 && this.animBtn && this.animBtn.visible); this.animCounterLbl.setText(String(animCount)); }
     }
 
     // rant_data
@@ -1337,7 +1348,7 @@ export default class MainScene extends Phaser.Scene {
       });
     }
 
-    // Slide new tab forward
+    // Slide new tab forward (expand) or retract back to base (collapse)
     if (newTab && expand && this.tabs[newTab]) {
       this.tweens.add({
         targets: this.tabs[newTab],
@@ -1347,7 +1358,19 @@ export default class MainScene extends Phaser.Scene {
         onComplete: () => { this.toolbarAnimating = false; },
       });
     } else {
-      this.time.delayedCall(DURATION, () => { this.toolbarAnimating = false; });
+      // On collapse: after retraction completes, restore all tabs to full active appearance
+      this.time.delayedCall(DURATION, () => {
+        this.toolbarAnimating = false;
+        if (!this.activeTab) {
+          ['games', 'feature', 'info'].forEach((key) => {
+            const node = this.tabs[key];
+            if (!node) return;
+            node.setTexture(`tab_${key}_on`);
+            node.setAlpha(1.0);
+            if (node.input) node.input.enabled = true;
+          });
+        }
+      });
     }
   }
 
