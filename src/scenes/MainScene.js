@@ -134,6 +134,10 @@ export default class MainScene extends Phaser.Scene {
     this.numRants              = 0;
     this.numAnimations         = 0;
     this._playingAnimationId   = 0;
+    this._isDownloading        = false;
+    this._videoEl              = null;
+    this._currentBlobUrl       = null;
+    this._currentServerUrl     = null;
     this._lastRantRefreshMs    = 0;
     this.curDisplayMode        = 'intermission';
     this.featureMode           = false;
