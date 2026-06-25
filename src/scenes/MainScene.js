@@ -261,6 +261,12 @@ export default class MainScene extends Phaser.Scene {
     this._buildPromptFeature();
     this._buildVideoPlayer();
 
+    // Release keys that Phaser captures by default so the DOM textarea receives them
+    // (OBS CEF + Interact mode needs these to reach native inputs)
+    this.input.keyboard.removeCapture(
+      'BACKSPACE,DELETE,UP,DOWN,LEFT,RIGHT,HOME,END,TAB'
+    );
+
     // Version stamp
     this.add.text(8, 8, 'Phaser Animate v5', {
       fontFamily: 'Arial', fontSize: '13px', color: '#00ff88',
